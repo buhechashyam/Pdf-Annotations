@@ -19,10 +19,16 @@
         android:theme="@style/Theme.PdfAnnotations"
         tools:targetApi="31">
         <activity
+            android:name=".pdf.MainActivity"
+            android:exported="false" />
+        <activity
             android:name=".pdf.PdfActivity"
             android:exported="false" />
         <activity
-            android:name=".pdf.MainActivity"
+            android:name=".pdf.SampleActivity"
+            android:exported="false" />
+        <activity
+            android:name=".pdf.NewActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

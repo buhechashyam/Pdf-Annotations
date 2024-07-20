@@ -8,14 +8,10 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
-import android.text.TextPaint;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -23,84 +19,76 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.example.pdfannotations.R;
-import com.example.pdfannotations.databinding.ActivityMainBinding;
+import com.example.pdfannotations.databinding.ActivityNewBinding;
+import com.example.pdfannotations.databinding.ActivityPdfBinding;
 import com.github.barteksc.pdfviewer.listener.OnDrawListener;
 import com.github.barteksc.pdfviewer.listener.OnLoadCompleteListener;
 import com.github.barteksc.pdfviewer.listener.OnRenderListener;
 import com.github.barteksc.pdfviewer.listener.OnTapListener;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
-import com.tom_roush.pdfbox.pdmodel.PDDocumentCatalog;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
 import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.JPEGFactory;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
-import com.tom_roush.pdfbox.pdmodel.interactive.action.PDActionGoTo;
-import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageXYZDestination;
 import com.tom_roush.pdfbox.rendering.ImageType;
 import com.tom_roush.pdfbox.rendering.PDFRenderer;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+public class NewActivity extends AppCompatActivity {
 
-    ActivityMainBinding binding;
-    PDDocument document;
-    ImageView markerView;
+    ActivityNewBinding binding;
     int mPageCount = 0;
+    int currentPageNum = 0;
+    ImageView markerView;
+    PDDocument document;
+    Uri fileUri = null;
     boolean isMarkerSet = true;
-    List<MarkerModel> markers = new ArrayList<>();
-    boolean isZoomable = true;
-
-    Uri file_uri;
     ActivityResultLauncher<Intent> pdfLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
             new ActivityResultCallback<ActivityResult>() {
                 @Override
                 public void onActivityResult(ActivityResult result) {
                     Intent intent = result.getData();
-                    assert intent != null;
                     Uri uri = intent.getData();
-                    file_uri = uri;
+
+                    fileUri = uri;
                     try {
                         InputStream inputStream = getContentResolver().openInputStream(uri);
                         document = PDDocument.load(inputStream);
                         mPageCount = document.getNumberOfPages();
 
+                        renderPdf(currentPageNum);
 
+
+                        binding.btnOpenPdf.setVisibility(View.GONE);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
                 }
             });
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        binding = ActivityMainBinding.inflate(getLayoutInflater());
+        binding = ActivityNewBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        //initialize Library
-        PDFBoxResourceLoader.init(getApplicationContext());
-
-        try {
-            document = PDDocument.load(getAssets().open("timer.pdf"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        mPageCount = document.getNumberOfPages();
         SharedPreferences prefs = getSharedPreferences("MyPermissions", MODE_PRIVATE);
         boolean permissionRequested = prefs.getBoolean("isGiven", false);
 
@@ -113,20 +101,27 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Permission already granted", Toast.LENGTH_SHORT).show();
         }
 
+        //initialize Library
+        PDFBoxResourceLoader.init(getApplicationContext());
+
+        try {
+            document = PDDocument.load(new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),"new.pdf"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        binding.btnOpenPdf.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent1 = new Intent(Intent.ACTION_GET_CONTENT);
+                intent1.setType("application/pdf");
+                pdfLauncher.launch(intent1);
+            }
+        });
 
 
-//        Intent intent1 = new Intent(Intent.ACTION_GET_CONTENT);
-//        intent1.setType("application/pdf");
-//        pdfLauncher.launch(intent1);
-//        InputStream inputStream;
-//        try {
-//             inputStream = getContentResolver().openInputStream(file_uri);
-//        } catch (FileNotFoundException e) {
-//            throw new RuntimeException(e);
-//        }
-
-        binding.pdfView.fromAsset("timer.pdf")
+        binding.pdfView.fromFile(new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),"new.pdf"))
                 .defaultPage(0)
+                .pages(0)
                 .onTap(new OnTapListener() {
                     @Override
                     public boolean onTap(MotionEvent event) {
@@ -141,7 +136,7 @@ public class MainActivity extends AppCompatActivity {
                             }
 
                         }else {
-                            Toast.makeText(MainActivity.this, "First set a Marker", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(NewActivity.this, "First set a Marker", Toast.LENGTH_SHORT).show();
                         }
 
                         return false;
@@ -166,51 +161,32 @@ public class MainActivity extends AppCompatActivity {
                 }).fitEachPage(true)
                 .load();
 
-
         binding.btnSet.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 try {
-                    markers.add(new MarkerModel(markerView.getX(),markerView.getY()));
+                    Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.ic_mark);
+                    PDImageXObject setImage = JPEGFactory.createFromImage(document, bitmap);
+                    setImage.setWidth(40);
+                    setImage.setHeight(40);
 
-                    binding.pdfView.fromAsset("timer.pdf")
-                            .onDraw(new OnDrawListener() {
-                                @Override
-                                public void onLayerDrawn(Canvas canvas, float pageWidth, float pageHeight, int displayedPage) {
-                               for (MarkerModel model : markers){
-                                   Paint paint = new Paint();
-                                   Bitmap bitmap = BitmapFactory.decodeResource(getResources(),R.drawable.ic_mark);
-                                   canvas.drawBitmap(bitmap,model.getxCoordinate(),model.getyCoordinate(),paint);
-                               }
-                               markerView.setVisibility(View.GONE);
-                                }
-                            })
-                            .onTap(new OnTapListener() {
-                                @Override
-                                public boolean onTap(MotionEvent event) {
-                                    if (isMarkerSet == true){
-                                        switch (event.getAction()) {
-                                            case MotionEvent.ACTION_DOWN: {
-                                                binding.buttons.setVisibility(View.VISIBLE);
-                                                addMarker(event.getX(), event.getY());
-//                                    isMarkerSet = false;
-                                                return true;
-                                            }
-                                        }
+                    PDPage pdPage = document.getDocumentCatalog().getPages().get(currentPageNum);
+                    PDPageContentStream contentStream = new PDPageContentStream(document, pdPage, PDPageContentStream.AppendMode.APPEND, true, true);
+                    contentStream.drawImage(setImage, markerView.getX() -40,binding.pdfView.getHeight() - markerView.getY());
+                    contentStream.saveGraphicsState();
+                    contentStream.close();
+                    //Save PDF in Downloads
+                    document.save(new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "new.pdf"));
 
-                                    }else {
-                                        Toast.makeText(MainActivity.this, "First set a Marker", Toast.LENGTH_SHORT).show();
-                                    }
+                    markerView.setVisibility(View.GONE);
+                    binding.buttons.setVisibility(View.GONE);
+                    Toast.makeText(NewActivity.this, "Marker is set", Toast.LENGTH_SHORT).show();
 
-                                    return false;
-                                }
-                            })
-                            .load();
-
+                    renderPdf(currentPageNum);
                     isMarkerSet = true;
                 } catch (Exception e) {
                     Log.d("MAIN", e.toString());
-                    Toast.makeText(MainActivity.this, "Try again! Marker is not set", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(NewActivity.this, "Try again! Marker is not set", Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -224,13 +200,12 @@ public class MainActivity extends AppCompatActivity {
 
             }
         });
-
     }
-    private void addMarker(float x, float y){
+
+    private void addMarker(float x, float y) {
         markerView = new ImageView(this);
         markerView.setImageResource(R.drawable.ic_mark);
-        markerView.setMaxHeight(40);
-        markerView.setMaxWidth(40);
+
         markerView.setAdjustViewBounds(true);
         markerView.setScaleType(ImageView.ScaleType.FIT_CENTER);
 
@@ -294,6 +269,47 @@ public class MainActivity extends AppCompatActivity {
             return false;
         }
     };
+
+    private void renderPdf(int position) {
+        try {
+            mPageCount = document.getNumberOfPages();
+
+            PDFRenderer pdfRenderer = new PDFRenderer(document);
+
+            binding.pdfView.fromFile(new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),"new.pdf"))
+                    .defaultPage(0)
+                    .pages(0)
+                    .onTap(new OnTapListener() {
+                        @Override
+                        public boolean onTap(MotionEvent event) {
+                            if (isMarkerSet == true){
+                                switch (event.getAction()) {
+                                    case MotionEvent.ACTION_DOWN: {
+                                        binding.buttons.setVisibility(View.VISIBLE);
+                                        addMarker(event.getX(), event.getY());
+//                                    isMarkerSet = false;
+                                        return true;
+                                    }
+                                }
+
+                            }else {
+                                Toast.makeText(NewActivity.this, "First set a Marker", Toast.LENGTH_SHORT).show();
+                            }
+
+                            return false;
+                        }
+                    })
+                    .load();
+            if (position < mPageCount) {
+                Bitmap bitmap = pdfRenderer.renderImage(position, 1, ImageType.RGB);
+//                binding.imageView.setImageBitmap(bitmap);
+            }
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private void requestPermission() {
         Intent intent = new Intent();
         intent.setAction(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
@@ -305,6 +321,18 @@ public class MainActivity extends AppCompatActivity {
             startActivity(intent);
         } else {
             Toast.makeText(this, "Permission already granted", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        try {
+            if (document != null) {
+                document.close();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }

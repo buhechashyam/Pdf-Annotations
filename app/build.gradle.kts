@@ -48,8 +48,8 @@ dependencies {
     //pdf box
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
-    implementation ("com.dmitryborodin:pdfview-android:1.1.0")
-
+    //
+    implementation("com.github.barteksc:android-pdf-viewer:3.2.0-beta.1")
 
 
     val room_version = "2.6.1"
